@@ -1,0 +1,16 @@
+[package]
+name = "debris"
+version = "0.1.0"
+authors = ["Mateusz Cegiełka <mateusz@cegla.net>"]
+edition = "2018"
+description = "Easy-to-debug, robust, maintainable HTML scraping for Rust"
+documentation = "https://docs.rs/debris"
+homepage = "https://github.com/pustaczek/debris"
+repository = "https://github.com/pustaczek/debris"
+readme = "README.md"
+keywords = ["html", "scraping", "selector"]
+license = "MIT"
+
+[dependencies]
+backtrace = "0.3"
+scraper = "0.10"
