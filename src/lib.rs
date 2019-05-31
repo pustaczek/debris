@@ -1,5 +1,5 @@
-use std::{io, fmt};
-use scraper::Selector;
+use std::fmt;
+use scraper::{Selector, ElementRef};
 use std::str::FromStr;
 
 mod arena_cache;
@@ -8,6 +8,7 @@ mod type_id;
 pub struct Error {
 	reason: Reason,
 	operations: Vec<Operation>,
+	pub snapshots: Vec<String>,
 }
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -55,6 +56,7 @@ pub trait Context {
 		Error {
 			reason,
 			operations,
+			snapshots: self.collect_snapshots(),
 		}
 	}
 	fn collect_operations(&self) -> Vec<Operation> {
@@ -64,12 +66,21 @@ pub trait Context {
 		}
 		ops
 	}
+	fn collect_snapshots(&self) -> Vec<String> {
+		let mut sss = self.get_source().map_or_else(|| vec![self.get_document().tree.root_element().html()], Context::collect_snapshots);
+		if let Some(v) = self.get_as_source() {
+			sss.push(v.element.html());
+		}
+		sss
+	}
 }
 
 #[derive(Debug)]
 pub enum Reason {
 	NotFound,
 	MultipleFound,
+	ExpectedElement,
+	ExpectedText,
 	External(Box<dyn fmt::Debug+Send+Sync>),
 }
 #[derive(Clone, Debug)]
@@ -77,7 +88,11 @@ pub enum Operation {
 	Find { selector: &'static str },
 	FindAll { selector: &'static str, index: usize },
 	FindFirst { selector: &'static str },
+	Child { index: usize },
+	ChildText { index: usize },
 	Text,
+	TextBr,
+	Attr { key: &'static str },
 	Parse { r#type: type_id::Type },
 	External,
 }
@@ -107,16 +122,11 @@ pub struct Text<'a> {
 }
 
 impl Document {
-	pub fn from_str(html: &str) -> Document {
+	pub fn new(html: &str) -> Document {
 		Document {
 			tree: scraper::Html::parse_document(html),
 			selector_cache: arena_cache::ArenaCache::new(),
 		}
-	}
-	pub fn from_read(mut read: impl io::Read) -> io::Result<Document> {
-		let mut buf = String::new();
-		read.read_to_string(&mut buf)?;
-		Ok(Document::from_str(&buf))
 	}
 	fn compile_selector(&self, selector: &'static str) -> &Selector {
 		self.selector_cache.query(selector, |selector| scraper::Selector::parse(selector).unwrap())
@@ -149,6 +159,28 @@ impl Find for Document {
 }
 
 impl<'a> Node<'a> {
+	pub fn child(&self, index: usize) -> Result<Node> {
+		match self.element.children().nth(index) {
+			Some(node) => Ok(Node {
+				document: self.document,
+				source: Some(self),
+				operation: Operation::Child { index },
+				element: ElementRef::wrap(node).ok_or_else(|| self.make_error(Reason::ExpectedElement, Operation::Child { index }))?,
+			}),
+			None => Err(self.make_error(Reason::NotFound, Operation::Child { index })),
+		}
+	}
+	pub fn text_child(&self, index: usize) -> Result<Text> {
+		match self.element.children().nth(index) {
+			Some(node) => Ok(Text {
+				document: self.document,
+				source: self,
+				operation: Operation::ChildText { index },
+				value: node.value().as_text().ok_or_else(|| self.make_error(Reason::ExpectedText, Operation::ChildText { index }))?.trim().to_owned(),
+			}),
+			None => Err(self.make_error(Reason::NotFound, Operation::Child { index })),
+		}
+	}
 	pub fn text(&self) -> Text {
 		let mut value = String::new();
 		for chunk in self.element.text() {
@@ -160,6 +192,31 @@ impl<'a> Node<'a> {
 			operation: Operation::Text,
 			value: value.trim().to_owned(),
 		}
+	}
+	pub fn text_br(&self) -> Text {
+		let mut value = String::new();
+		for v in self.element.descendants() {
+			match v.value() {
+				scraper::node::Node::Text(text) => value += &*text,
+				scraper::node::Node::Element(element) if element.name() == "br" => value += "\n",
+				_ => (),
+			}
+		}
+		Text {
+			document: self.document,
+			source: self,
+			operation: Operation::TextBr,
+			value: value.trim().to_owned(),
+		}
+	}
+	pub fn attr(&self, key: &'static str) -> Result<Text> {
+		let value = self.element.value().attr(key).ok_or_else(|| self.make_error(Reason::NotFound, Operation::Attr { key }))?;
+		Ok(Text {
+			document: self.document,
+			source: self,
+			operation: Operation::Attr { key },
+			value: value.to_owned(),
+		})
 	}
 }
 impl<'a> Context for Node<'a> {
@@ -213,6 +270,9 @@ impl<'a> Text<'a> {
 	pub fn string(&self) -> String {
 		self.value.clone()
 	}
+	pub fn as_str(&self) -> &str {
+		&self.value
+	}
 	pub fn parse<T>(&self) -> Result<T> where T: FromStr+typename::TypeName+'static, <T as FromStr>::Err: fmt::Debug+Send+Sync+'static {
 		self.value
 			.parse()
@@ -239,6 +299,11 @@ impl<'a> Context for Text<'a> {
 		None
 	}
 }
+impl<'a> PartialEq<&str> for Text<'a> {
+	fn eq(&self, other: &&str) -> bool {
+		self.as_str() == *other
+	}
+}
 
 impl fmt::Debug for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -257,3 +322,9 @@ impl fmt::Debug for Error {
 		Ok(())
 	}
 }
+impl fmt::Display for Error {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "encountered unexpected HTML structure ({:?} in {:?})", self.reason, self.operations)
+	}
+}
+impl std::error::Error for Error {}
