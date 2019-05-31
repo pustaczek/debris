@@ -6,9 +6,7 @@ pub struct Type {
 }
 impl Type {
 	pub fn of<T: typename::TypeName+'static>() -> Type {
-		Type {
-			name: T::type_name(),
-		}
+		Type { name: T::type_name() }
 	}
 }
 impl fmt::Debug for Type {

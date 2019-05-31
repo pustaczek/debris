@@ -1,6 +1,5 @@
-use std::fmt;
-use scraper::{Selector, ElementRef};
-use std::str::FromStr;
+use scraper::{ElementRef, Selector};
+use std::{fmt, str::FromStr};
 
 mod arena_cache;
 mod type_id;
@@ -35,11 +34,10 @@ pub trait Find: Context {
 				document: self.get_document(),
 				source: self.get_as_source(),
 				operation: Operation::FindFirst { selector },
-				element
+				element,
 			}),
 			None => Err(self.make_error(Reason::NotFound, Operation::FindFirst { selector })),
 		}
-
 	}
 }
 pub trait Context {
@@ -67,7 +65,9 @@ pub trait Context {
 		ops
 	}
 	fn collect_snapshots(&self) -> Vec<String> {
-		let mut sss = self.get_source().map_or_else(|| vec![self.get_document().tree.root_element().html()], Context::collect_snapshots);
+		let mut sss = self
+			.get_source()
+			.map_or_else(|| vec![self.get_document().tree.root_element().html()], Context::collect_snapshots);
 		if let Some(v) = self.get_as_source() {
 			sss.push(v.element.html());
 		}
@@ -128,6 +128,7 @@ impl Document {
 			selector_cache: arena_cache::ArenaCache::new(),
 		}
 	}
+
 	fn compile_selector(&self, selector: &'static str) -> &Selector {
 		self.selector_cache.query(selector, |selector| scraper::Selector::parse(selector).unwrap())
 	}
@@ -136,12 +137,15 @@ impl Context for Document {
 	fn get_document(&self) -> &Document {
 		self
 	}
+
 	fn get_source(&self) -> Option<&Node> {
 		None
 	}
+
 	fn get_operation(&self) -> Option<Operation> {
 		None
 	}
+
 	fn get_as_source(&self) -> Option<&Node> {
 		None
 	}
@@ -170,17 +174,24 @@ impl<'a> Node<'a> {
 			None => Err(self.make_error(Reason::NotFound, Operation::Child { index })),
 		}
 	}
+
 	pub fn text_child(&self, index: usize) -> Result<Text> {
 		match self.element.children().nth(index) {
 			Some(node) => Ok(Text {
 				document: self.document,
 				source: self,
 				operation: Operation::ChildText { index },
-				value: node.value().as_text().ok_or_else(|| self.make_error(Reason::ExpectedText, Operation::ChildText { index }))?.trim().to_owned(),
+				value: node
+					.value()
+					.as_text()
+					.ok_or_else(|| self.make_error(Reason::ExpectedText, Operation::ChildText { index }))?
+					.trim()
+					.to_owned(),
 			}),
 			None => Err(self.make_error(Reason::NotFound, Operation::Child { index })),
 		}
 	}
+
 	pub fn text(&self) -> Text {
 		let mut value = String::new();
 		for chunk in self.element.text() {
@@ -193,6 +204,7 @@ impl<'a> Node<'a> {
 			value: value.trim().to_owned(),
 		}
 	}
+
 	pub fn text_br(&self) -> Text {
 		let mut value = String::new();
 		for v in self.element.descendants() {
@@ -209,6 +221,7 @@ impl<'a> Node<'a> {
 			value: value.trim().to_owned(),
 		}
 	}
+
 	pub fn attr(&self, key: &'static str) -> Result<Text> {
 		let value = self.element.value().attr(key).ok_or_else(|| self.make_error(Reason::NotFound, Operation::Attr { key }))?;
 		Ok(Text {
@@ -223,12 +236,15 @@ impl<'a> Context for Node<'a> {
 	fn get_document(&self) -> &Document {
 		self.document
 	}
+
 	fn get_source(&self) -> Option<&Node> {
 		self.source
 	}
+
 	fn get_operation(&self) -> Option<Operation> {
 		Some(self.operation.clone())
 	}
+
 	fn get_as_source(&self) -> Option<&Node> {
 		Some(self)
 	}
@@ -240,7 +256,7 @@ impl<'a> Find for Node<'a> {
 			source: Some(self),
 			selector,
 			iterator: self.element.select(self.document.compile_selector(selector)),
-			index: 0
+			index: 0,
 		}
 	}
 }
@@ -252,11 +268,15 @@ impl<'a> fmt::Debug for Node<'a> {
 
 impl<'a> Iterator for Collection<'a> {
 	type Item = Node<'a>;
+
 	fn next(&mut self) -> Option<Node<'a>> {
 		self.iterator.next().map(|element| {
 			let node = Node {
 				document: self.document,
-				operation: Operation::FindAll { selector: self.selector, index: self.index },
+				operation: Operation::FindAll {
+					selector: self.selector,
+					index: self.index,
+				},
 				source: self.source,
 				element,
 			};
@@ -270,31 +290,38 @@ impl<'a> Text<'a> {
 	pub fn string(&self) -> String {
 		self.value.clone()
 	}
+
 	pub fn as_str(&self) -> &str {
 		&self.value
 	}
-	pub fn parse<T>(&self) -> Result<T> where T: FromStr+typename::TypeName+'static, <T as FromStr>::Err: fmt::Debug+Send+Sync+'static {
+
+	pub fn parse<T>(&self) -> Result<T>
+	where
+		T: FromStr+typename::TypeName+'static,
+		<T as FromStr>::Err: fmt::Debug+Send+Sync+'static,
+	{
 		self.value
 			.parse()
-			.map_err(|inner| {
-				self.make_error(Reason::External(Box::new(inner)), Operation::Parse { r#type: type_id::Type::of::<T>() })
-			})
+			.map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::Parse { r#type: type_id::Type::of::<T>() }))
 	}
+
 	pub fn map<T, E: fmt::Debug+Send+Sync+'static>(&self, f: impl FnOnce(&str) -> std::result::Result<T, E>) -> Result<T> {
-		f(&self.value)
-			.map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::External))
+		f(&self.value).map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::External))
 	}
 }
 impl<'a> Context for Text<'a> {
 	fn get_document(&self) -> &Document {
 		self.document
 	}
+
 	fn get_source(&self) -> Option<&Node> {
 		Some(self.source)
 	}
+
 	fn get_operation(&self) -> Option<Operation> {
 		Some(self.operation.clone())
 	}
+
 	fn get_as_source(&self) -> Option<&Node> {
 		None
 	}

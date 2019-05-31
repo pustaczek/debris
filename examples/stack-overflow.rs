@@ -1,4 +1,4 @@
-use debris::{Find};
+use debris::Find;
 
 const HTML: &'static str = include_str!("./stack-overflow.html");
 
