@@ -90,6 +90,7 @@ pub enum Operation {
 	FindFirst { selector: &'static str },
 	Child { index: usize },
 	ChildText { index: usize },
+	Parent,
 	Text,
 	TextBr,
 	Attr { key: &'static str },
@@ -189,6 +190,18 @@ impl<'a> Node<'a> {
 					.to_owned(),
 			}),
 			None => Err(self.make_error(Reason::NotFound, Operation::Child { index })),
+		}
+	}
+
+	pub fn parent(&self) -> Result<Node> {
+		match self.element.parent() {
+			Some(node) => Ok(Node {
+				document: self.document,
+				source: Some(self),
+				operation: Operation::Parent,
+				element: ElementRef::wrap(node).ok_or_else(|| self.make_error(Reason::ExpectedElement, Operation::Parent))?,
+			}),
+			None => Err(self.make_error(Reason::NotFound, Operation::Parent)),
 		}
 	}
 
