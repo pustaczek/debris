@@ -273,11 +273,6 @@ impl<'a> Find for Node<'a> {
 		}
 	}
 }
-impl<'a> fmt::Debug for Node<'a> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", &self.element.html())
-	}
-}
 
 impl<'a> Iterator for Collection<'a> {
 	type Item = Node<'a>;
@@ -342,6 +337,17 @@ impl<'a> Context for Text<'a> {
 impl<'a> PartialEq<&str> for Text<'a> {
 	fn eq(&self, other: &&str) -> bool {
 		self.as_str() == *other
+	}
+}
+
+impl fmt::Debug for Document {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		writeln!(f, "{}", self.tree.root_element().html())
+	}
+}
+impl fmt::Debug for Node<'_> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		writeln!(f, "{}", self.element.html())
 	}
 }
 
