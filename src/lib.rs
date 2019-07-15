@@ -1,5 +1,6 @@
 use scraper::{ElementRef, Selector};
 use std::{fmt, str::FromStr};
+use backtrace::Backtrace;
 
 mod arena_cache;
 mod type_id;
@@ -8,6 +9,7 @@ pub struct Error {
 	reason: Reason,
 	operations: Vec<Operation>,
 	pub snapshots: Vec<String>,
+	pub backtrace: Backtrace,
 }
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -55,6 +57,7 @@ pub trait Context {
 			reason,
 			operations,
 			snapshots: self.collect_snapshots(),
+			backtrace: Backtrace::new(),
 		}
 	}
 	fn collect_operations(&self) -> Vec<Operation> {
