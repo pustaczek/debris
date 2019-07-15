@@ -6,8 +6,8 @@ mod arena_cache;
 mod type_id;
 
 pub struct Error {
-	reason: Reason,
-	operations: Vec<Operation>,
+	pub reason: Reason,
+	pub operations: Vec<Operation>,
 	pub snapshots: Vec<String>,
 	pub backtrace: Backtrace,
 }
