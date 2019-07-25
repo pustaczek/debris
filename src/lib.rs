@@ -345,12 +345,17 @@ impl<'a> PartialEq<&str> for Text<'a> {
 
 impl fmt::Debug for Document {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		writeln!(f, "{}", self.tree.root_element().html())
+		write!(f, "{}", self.tree.root_element().html())
 	}
 }
 impl fmt::Debug for Node<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		writeln!(f, "{}", self.element.html())
+		write!(f, "{}", self.element.html())
+	}
+}
+impl fmt::Debug for Text<'_> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{:?}", self.as_str())
 	}
 }
 
