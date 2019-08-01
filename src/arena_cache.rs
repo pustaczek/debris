@@ -6,9 +6,7 @@ pub struct ArenaCache<K: Hash+Eq, V> {
 
 impl<K: Hash+Eq, V> ArenaCache<K, V> {
 	pub fn new() -> ArenaCache<K, V> {
-		ArenaCache {
-			entries: RefCell::new(HashMap::new()),
-		}
+		ArenaCache { entries: RefCell::new(HashMap::new()) }
 	}
 
 	pub fn query<'a>(&'a self, key: K, computation: impl FnOnce(&K) -> V) -> &'a V {

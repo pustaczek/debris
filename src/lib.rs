@@ -1,6 +1,6 @@
+use backtrace::Backtrace;
 use scraper::{ElementRef, Selector};
 use std::{fmt, str::FromStr};
-use backtrace::Backtrace;
 
 mod arena_cache;
 mod type_id;
@@ -20,24 +20,18 @@ pub trait Find: Context {
 		let element = iter.next();
 		let is_only = iter.next().is_none();
 		match element {
-			Some(element) if is_only => Ok(Node {
-				document: self.get_document(),
-				source: self.get_as_source(),
-				operation: Operation::Find { selector },
-				element,
-			}),
+			Some(element) if is_only => {
+				Ok(Node { document: self.get_document(), source: self.get_as_source(), operation: Operation::Find { selector }, element })
+			},
 			Some(_) => Err(self.make_error(Reason::MultipleFound, Operation::Find { selector })),
 			None => Err(self.make_error(Reason::NotFound, Operation::Find { selector })),
 		}
 	}
 	fn find_first(&self, selector: &'static str) -> Result<Node> {
 		match self.find_all(selector).iterator.next() {
-			Some(element) => Ok(Node {
-				document: self.get_document(),
-				source: self.get_as_source(),
-				operation: Operation::FindFirst { selector },
-				element,
-			}),
+			Some(element) => {
+				Ok(Node { document: self.get_document(), source: self.get_as_source(), operation: Operation::FindFirst { selector }, element })
+			},
 			None => Err(self.make_error(Reason::NotFound, Operation::FindFirst { selector })),
 		}
 	}
@@ -53,12 +47,7 @@ pub trait Context {
 	fn make_error(&self, reason: Reason, operation: Operation) -> Error {
 		let mut operations = self.collect_operations();
 		operations.push(operation);
-		Error {
-			reason,
-			operations,
-			snapshots: self.collect_snapshots(),
-			backtrace: Backtrace::new(),
-		}
+		Error { reason, operations, snapshots: self.collect_snapshots(), backtrace: Backtrace::new() }
 	}
 	fn collect_operations(&self) -> Vec<Operation> {
 		let mut ops = self.get_source().map_or(Vec::new(), Context::collect_operations);
@@ -68,9 +57,7 @@ pub trait Context {
 		ops
 	}
 	fn collect_snapshots(&self) -> Vec<String> {
-		let mut sss = self
-			.get_source()
-			.map_or_else(|| vec![self.get_document().tree.root_element().html()], Context::collect_snapshots);
+		let mut sss = self.get_source().map_or_else(|| vec![self.get_document().tree.root_element().html()], Context::collect_snapshots);
 		if let Some(v) = self.get_as_source() {
 			sss.push(v.element.html());
 		}
@@ -127,10 +114,7 @@ pub struct Text<'a> {
 
 impl Document {
 	pub fn new(html: &str) -> Document {
-		Document {
-			tree: scraper::Html::parse_document(html),
-			selector_cache: arena_cache::ArenaCache::new(),
-		}
+		Document { tree: scraper::Html::parse_document(html), selector_cache: arena_cache::ArenaCache::new() }
 	}
 
 	fn compile_selector(&self, selector: &'static str) -> &Selector {
@@ -156,13 +140,7 @@ impl Context for Document {
 }
 impl Find for Document {
 	fn find_all(&self, selector: &'static str) -> Collection {
-		Collection {
-			document: self,
-			source: None,
-			selector,
-			iterator: self.tree.root_element().select(self.compile_selector(selector)),
-			index: 0,
-		}
+		Collection { document: self, source: None, selector, iterator: self.tree.root_element().select(self.compile_selector(selector)), index: 0 }
 	}
 }
 
@@ -185,12 +163,7 @@ impl<'a> Node<'a> {
 				document: self.document,
 				source: self,
 				operation: Operation::ChildText { index },
-				value: node
-					.value()
-					.as_text()
-					.ok_or_else(|| self.make_error(Reason::ExpectedText, Operation::ChildText { index }))?
-					.trim()
-					.to_owned(),
+				value: node.value().as_text().ok_or_else(|| self.make_error(Reason::ExpectedText, Operation::ChildText { index }))?.trim().to_owned(),
 			}),
 			None => Err(self.make_error(Reason::NotFound, Operation::Child { index })),
 		}
@@ -213,12 +186,7 @@ impl<'a> Node<'a> {
 		for chunk in self.element.text() {
 			value += chunk;
 		}
-		Text {
-			document: self.document,
-			source: self,
-			operation: Operation::Text,
-			value: value.trim().to_owned(),
-		}
+		Text { document: self.document, source: self, operation: Operation::Text, value: value.trim().to_owned() }
 	}
 
 	pub fn text_br(&self) -> Text {
@@ -230,22 +198,12 @@ impl<'a> Node<'a> {
 				_ => (),
 			}
 		}
-		Text {
-			document: self.document,
-			source: self,
-			operation: Operation::TextBr,
-			value: value.trim().to_owned(),
-		}
+		Text { document: self.document, source: self, operation: Operation::TextBr, value: value.trim().to_owned() }
 	}
 
 	pub fn attr(&self, key: &'static str) -> Result<Text> {
 		let value = self.element.value().attr(key).ok_or_else(|| self.make_error(Reason::NotFound, Operation::Attr { key }))?;
-		Ok(Text {
-			document: self.document,
-			source: self,
-			operation: Operation::Attr { key },
-			value: value.to_owned(),
-		})
+		Ok(Text { document: self.document, source: self, operation: Operation::Attr { key }, value: value.to_owned() })
 	}
 }
 impl<'a> Context for Node<'a> {
@@ -284,10 +242,7 @@ impl<'a> Iterator for Collection<'a> {
 		self.iterator.next().map(|element| {
 			let node = Node {
 				document: self.document,
-				operation: Operation::FindAll {
-					selector: self.selector,
-					index: self.index,
-				},
+				operation: Operation::FindAll { selector: self.selector, index: self.index },
 				source: self.source,
 				element,
 			};
@@ -311,9 +266,7 @@ impl<'a> Text<'a> {
 		T: FromStr+typename::TypeName+'static,
 		<T as FromStr>::Err: fmt::Debug+Send+Sync+'static,
 	{
-		self.value
-			.parse()
-			.map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::Parse { r#type: type_id::Type::of::<T>() }))
+		self.value.parse().map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::Parse { r#type: type_id::Type::of::<T>() }))
 	}
 
 	pub fn map<T, E: fmt::Debug+Send+Sync+'static>(&self, f: impl FnOnce(&str) -> std::result::Result<T, E>) -> Result<T> {
@@ -381,4 +334,5 @@ impl fmt::Display for Error {
 		write!(f, "encountered unexpected HTML structure ({:?} in {:?})", self.reason, self.operations)
 	}
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+}
