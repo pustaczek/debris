@@ -35,6 +35,14 @@ pub trait Find: Context {
 			None => Err(self.make_error(Reason::NotFound, Operation::FindFirst { selector })),
 		}
 	}
+	fn find_nth(&self, selector: &'static str, index: usize) -> Result<Node> {
+		match self.find_all(selector).iterator.nth(index) {
+			Some(element) => {
+				Ok(Node { document: self.get_document(), source: self.get_as_source(), operation: Operation::FindNth { selector, index }, element })
+			},
+			None => Err(self.make_error(Reason::NotFound, Operation::FindNth { selector, index })),
+		}
+	}
 }
 pub trait Context {
 	fn get_document(&self) -> &Document;
@@ -78,6 +86,7 @@ pub enum Operation {
 	Find { selector: &'static str },
 	FindAll { selector: &'static str, index: usize },
 	FindFirst { selector: &'static str },
+	FindNth { selector: &'static str, index: usize },
 	Child { index: usize },
 	ChildText { index: usize },
 	Parent,
