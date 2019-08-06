@@ -98,7 +98,7 @@ pub enum Operation {
 }
 
 pub struct Document {
-	tree: scraper::Html,
+	pub tree: scraper::Html,
 	selector_cache: arena_cache::ArenaCache<&'static str, Selector>,
 }
 pub struct Node<'a> {
@@ -124,6 +124,10 @@ pub struct Text<'a> {
 impl Document {
 	pub fn new(html: &str) -> Document {
 		Document { tree: scraper::Html::parse_document(html), selector_cache: arena_cache::ArenaCache::new() }
+	}
+
+	pub fn html(&self) -> String {
+		self.tree.root_element().html()
 	}
 
 	fn compile_selector(&self, selector: &'static str) -> &Selector {
