@@ -13,5 +13,4 @@ license = "MIT"
 
 [dependencies]
 backtrace = "0.3"
-scraper = "0.10"
-typename = { version = "0.1", default-features = false }
+scraper = { version = "0.10", default-features = false }

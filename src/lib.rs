@@ -3,7 +3,6 @@ use scraper::{ElementRef, Selector};
 use std::{fmt, str::FromStr};
 
 mod arena_cache;
-mod type_id;
 
 pub struct Error {
 	pub reason: Reason,
@@ -93,7 +92,7 @@ pub enum Operation {
 	Text,
 	TextBr,
 	Attr { key: &'static str },
-	Parse { r#type: type_id::Type },
+	Parse,
 	External,
 }
 
@@ -276,10 +275,10 @@ impl<'a> Text<'a> {
 
 	pub fn parse<T>(&self) -> Result<T>
 	where
-		T: FromStr+typename::TypeName+'static,
+		T: FromStr+'static,
 		<T as FromStr>::Err: fmt::Debug+Send+Sync+'static,
 	{
-		self.value.parse().map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::Parse { r#type: type_id::Type::of::<T>() }))
+		self.value.parse().map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::Parse))
 	}
 
 	pub fn map<T, E: fmt::Debug+Send+Sync+'static>(&self, f: impl FnOnce(&str) -> std::result::Result<T, E>) -> Result<T> {
