@@ -4,6 +4,7 @@ use std::{fmt, str::FromStr};
 
 mod arena_cache;
 
+#[derive(Debug)]
 pub struct Error {
 	pub reason: Reason,
 	pub operations: Vec<Operation>,
@@ -48,7 +49,7 @@ pub trait Context {
 	fn get_source(&self) -> Option<&Node>;
 	fn get_operation(&self) -> Option<Operation>;
 	fn get_as_source(&self) -> Option<&Node>;
-	fn error(&self, reason: impl fmt::Debug+Send+Sync+'static) -> Error {
+	fn error(&self, reason: impl fmt::Debug+fmt::Display+Send+Sync+'static) -> Error {
 		self.make_error(Reason::External(Box::new(reason)), Operation::External)
 	}
 	fn make_error(&self, reason: Reason, operation: Operation) -> Error {
@@ -72,13 +73,17 @@ pub trait Context {
 	}
 }
 
+pub trait DebugDisplay: fmt::Debug+fmt::Display {}
+impl<T: fmt::Debug+fmt::Display> DebugDisplay for T {
+}
+
 #[derive(Debug)]
 pub enum Reason {
 	NotFound,
 	MultipleFound,
 	ExpectedElement,
 	ExpectedText,
-	External(Box<dyn fmt::Debug+Send+Sync>),
+	External(Box<dyn DebugDisplay+Send+Sync>),
 }
 #[derive(Clone, Debug)]
 pub enum Operation {
@@ -90,7 +95,7 @@ pub enum Operation {
 	ChildText { index: usize },
 	Parent,
 	Text,
-	TextBr,
+	TextMultiline,
 	Attr { key: &'static str },
 	Parse,
 	External,
@@ -201,7 +206,7 @@ impl<'a> Node<'a> {
 		Text { document: self.document, source: self, operation: Operation::Text, value: value.trim().to_owned() }
 	}
 
-	pub fn text_br(&self) -> Text {
+	pub fn text_multiline(&self) -> Text {
 		let mut value = String::new();
 		for v in self.element.descendants() {
 			match v.value() {
@@ -210,7 +215,7 @@ impl<'a> Node<'a> {
 				_ => (),
 			}
 		}
-		Text { document: self.document, source: self, operation: Operation::TextBr, value: value.trim().to_owned() }
+		Text { document: self.document, source: self, operation: Operation::TextMultiline, value: value.trim().to_owned() }
 	}
 
 	pub fn attr(&self, key: &'static str) -> Result<Text> {
@@ -276,12 +281,12 @@ impl<'a> Text<'a> {
 	pub fn parse<T>(&self) -> Result<T>
 	where
 		T: FromStr+'static,
-		<T as FromStr>::Err: fmt::Debug+Send+Sync+'static,
+		<T as FromStr>::Err: fmt::Debug+fmt::Display+Send+Sync+'static,
 	{
 		self.value.parse().map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::Parse))
 	}
 
-	pub fn map<T, E: fmt::Debug+Send+Sync+'static>(&self, f: impl FnOnce(&str) -> std::result::Result<T, E>) -> Result<T> {
+	pub fn map<T, E: fmt::Debug+fmt::Display+Send+Sync+'static>(&self, f: impl FnOnce(&str) -> std::result::Result<T, E>) -> Result<T> {
 		f(&self.value).map_err(|inner| self.make_error(Reason::External(Box::new(inner)), Operation::External))
 	}
 }
@@ -324,26 +329,48 @@ impl fmt::Debug for Text<'_> {
 	}
 }
 
-impl fmt::Debug for Error {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		writeln!(f, "debris::Error {{")?;
-		writeln!(f, "    reason: {:?},", self.reason)?;
-		if !self.operations.is_empty() {
-			writeln!(f, "    operations: [")?;
-			for op in &self.operations {
-				writeln!(f, "        {:?},", op)?;
-			}
-			writeln!(f, "    ],")?;
-		} else {
-			writeln!(f, "    operations: [],")?;
+fn fmt_multiple(n: usize) -> String {
+	match n {
+		1 => "1st".to_owned(),
+		2 => "2nd".to_owned(),
+		3 => "3rd".to_owned(),
+		_ => format!("{}th", n),
+	}
+}
+
+impl fmt::Display for Reason {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Reason::NotFound => write!(f, "not found"),
+			Reason::MultipleFound => write!(f, "found too many"),
+			Reason::ExpectedElement => write!(f, "expected element"),
+			Reason::ExpectedText => write!(f, "expected text"),
+			Reason::External(inner) => fmt::Display::fmt(&**inner, f),
 		}
-		write!(f, "}}")?;
-		Ok(())
+	}
+}
+
+impl fmt::Display for Operation {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Operation::Find { selector } => write!(f, "'{}'", selector),
+			Operation::FindAll { selector, index } => write!(f, "{} of '{}'", fmt_multiple(*index), selector),
+			Operation::FindFirst { selector } => write!(f, "first '{}'", selector),
+			Operation::FindNth { selector, index } => write!(f, "{} '{}'", fmt_multiple(*index), selector),
+			Operation::Child { index } => write!(f, "{} child", fmt_multiple(*index)),
+			Operation::ChildText { index } => write!(f, "{} child text", fmt_multiple(*index)),
+			Operation::Parent => write!(f, "parent"),
+			Operation::Text => write!(f, "text"),
+			Operation::TextMultiline => write!(f, "multiline text"),
+			Operation::Attr { key } => write!(f, "attr '{}'", key),
+			Operation::Parse => write!(f, "parse"),
+			Operation::External => write!(f, "external"),
+		}
 	}
 }
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "encountered unexpected HTML structure ({:?} in {:?})", self.reason, self.operations)
+		write!(f, "{} {}", self.reason, self.operations.iter().rev().map(Operation::to_string).collect::<Vec<_>>().join(" "))
 	}
 }
 impl std::error::Error for Error {
