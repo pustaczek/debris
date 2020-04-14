@@ -1,4 +1,4 @@
-use backtrace::Backtrace;
+use wasm_backtrace::Backtrace;
 use scraper::{ElementRef, Selector};
 use std::{fmt, str::FromStr};
 

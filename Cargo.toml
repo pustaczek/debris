@@ -12,5 +12,5 @@ keywords = ["html", "scraping", "selector"]
 license = "MIT"
 
 [dependencies]
-backtrace = "0.3"
+wasm-backtrace = { git = "https://github.com/pustaczek/wasm-backtrace" }
 scraper = { version = "0.11", default-features = false }
