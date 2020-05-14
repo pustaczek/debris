@@ -13,4 +13,4 @@ license = "MIT"
 
 [dependencies]
 wasm-backtrace = { git = "https://github.com/pustaczek/wasm-backtrace" }
-scraper = { version = "0.11", default-features = false }
+scraper = { version = "0.12", default-features = false }
